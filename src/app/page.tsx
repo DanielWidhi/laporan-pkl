@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { FileText, ArrowRight, ShieldCheck, MapPin, Clock } from "lucide-react";
+import { Footer } from "@/components/footer";
 
 export default function Home() {
   return (
@@ -72,9 +73,7 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t py-6 text-center text-xs text-slate-500 bg-white">
-        © {new Date().getFullYear()} SiPekal. Dibangun untuk kemudahan mahasiswa magang.
-      </footer>
+      <Footer />
     </div>
   );
 }

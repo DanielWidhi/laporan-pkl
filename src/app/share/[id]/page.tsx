@@ -30,6 +30,7 @@ import {
     IdCard,
     Users,
 } from "lucide-react";
+import { Footer } from "@/components/footer";
 
 interface Profile {
     nama: string;
@@ -375,6 +376,11 @@ export default function SharedLaporanPage() {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Footer - tidak tampil saat print */}
+            <div className="max-w-4xl mx-auto mt-6 print:hidden">
+                <Footer />
             </div>
         </div>
     );

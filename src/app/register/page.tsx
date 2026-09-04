@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Footer } from "@/components/footer";
 
 export default function RegisterPage() {
     const router = useRouter();
@@ -88,65 +89,68 @@ export default function RegisterPage() {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-            <Card className="w-full max-w-sm shadow-lg">
-                <CardHeader className="space-y-1">
-                    <CardTitle className="text-2xl font-bold text-center">
-                        Daftar Akun PKL
-                    </CardTitle>
-                    <CardDescription className="text-center">
-                        Buat akun mahasiswa baru untuk mulai membuat laporan PKL
-                    </CardDescription>
-                </CardHeader>
-                <form onSubmit={handleRegister}>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="email">Email</Label>
-                            <Input
-                                id="email"
-                                type="email"
-                                placeholder="nama@kampus.ac.id"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="password">Password</Label>
-                            <Input
-                                id="password"
-                                type="password"
-                                placeholder="Minimal 6 karakter"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="confirmPassword">Konfirmasi Password</Label>
-                            <Input
-                                id="confirmPassword"
-                                type="password"
-                                placeholder="Ketik ulang password"
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                required
-                            />
-                        </div>
-                    </CardContent>
-                    <CardFooter className="flex flex-col gap-4">
-                        <Button className="w-full" type="submit" disabled={isLoading}>
-                            {isLoading ? "Mendaftarkan..." : "Daftar Sekarang"}
-                        </Button>
-                        <div className="text-sm text-center text-slate-500">
-                            Sudah punya akun?{" "}
-                            <Link href="/login" className="text-blue-600 hover:underline">
-                                Masuk di sini
-                            </Link>
-                        </div>
-                    </CardFooter>
-                </form>
-            </Card>
+        <div className="flex min-h-screen flex-col bg-slate-50">
+            <main className="flex flex-1 items-center justify-center p-4">
+                <Card className="w-full max-w-sm shadow-lg">
+                    <CardHeader className="space-y-1">
+                        <CardTitle className="text-2xl font-bold text-center">
+                            Daftar Akun PKL
+                        </CardTitle>
+                        <CardDescription className="text-center">
+                            Buat akun mahasiswa baru untuk mulai membuat laporan PKL
+                        </CardDescription>
+                    </CardHeader>
+                    <form onSubmit={handleRegister}>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="email">Email</Label>
+                                <Input
+                                    id="email"
+                                    type="email"
+                                    placeholder="nama@kampus.ac.id"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="password">Password</Label>
+                                <Input
+                                    id="password"
+                                    type="password"
+                                    placeholder="Minimal 6 karakter"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="confirmPassword">Konfirmasi Password</Label>
+                                <Input
+                                    id="confirmPassword"
+                                    type="password"
+                                    placeholder="Ketik ulang password"
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    required
+                                />
+                            </div>
+                        </CardContent>
+                        <CardFooter className="flex flex-col gap-4">
+                            <Button className="w-full" type="submit" disabled={isLoading}>
+                                {isLoading ? "Mendaftarkan..." : "Daftar Sekarang"}
+                            </Button>
+                            <div className="text-sm text-center text-slate-500">
+                                Sudah punya akun?{" "}
+                                <Link href="/login" className="text-blue-600 hover:underline">
+                                    Masuk di sini
+                                </Link>
+                            </div>
+                        </CardFooter>
+                    </form>
+                </Card>
+            </main>
+            <Footer />
         </div>
     );
 }

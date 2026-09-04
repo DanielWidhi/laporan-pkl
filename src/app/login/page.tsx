@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Footer } from "@/components/footer";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -99,53 +100,56 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-            <Card className="w-full max-w-sm shadow-lg">
-                <CardHeader className="space-y-1">
-                    <CardTitle className="text-2xl font-bold text-center">
-                        Login PKL
-                    </CardTitle>
-                    <CardDescription className="text-center">
-                        Masukkan email dan password Anda untuk masuk ke sistem
-                    </CardDescription>
-                </CardHeader>
-                <form onSubmit={handleLogin}>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="email">Email</Label>
-                            <Input
-                                id="email"
-                                type="email"
-                                placeholder="nama@kampus.ac.id"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="password">Password</Label>
-                            <Input
-                                id="password"
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                            />
-                        </div>
-                    </CardContent>
-                    <CardFooter className="flex flex-col gap-4">
-                        <Button className="w-full" type="submit" disabled={isLoading}>
-                            {isLoading ? "Memeriksa..." : "Masuk"}
-                        </Button>
-                        <div className="text-sm text-center text-slate-500">
-                            Belum punya akun?{" "}
-                            <Link href="/register" className="text-blue-600 hover:underline">
-                                Daftar di sini
-                            </Link>
-                        </div>
-                    </CardFooter>
-                </form>
-            </Card>
+        <div className="flex min-h-screen flex-col bg-slate-50">
+            <main className="flex flex-1 items-center justify-center p-4">
+                <Card className="w-full max-w-sm shadow-lg">
+                    <CardHeader className="space-y-1">
+                        <CardTitle className="text-2xl font-bold text-center">
+                            Login PKL
+                        </CardTitle>
+                        <CardDescription className="text-center">
+                            Masukkan email dan password Anda untuk masuk ke sistem
+                        </CardDescription>
+                    </CardHeader>
+                    <form onSubmit={handleLogin}>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="email">Email</Label>
+                                <Input
+                                    id="email"
+                                    type="email"
+                                    placeholder="nama@kampus.ac.id"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="password">Password</Label>
+                                <Input
+                                    id="password"
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                />
+                            </div>
+                        </CardContent>
+                        <CardFooter className="flex flex-col gap-4">
+                            <Button className="w-full" type="submit" disabled={isLoading}>
+                                {isLoading ? "Memeriksa..." : "Masuk"}
+                            </Button>
+                            <div className="text-sm text-center text-slate-500">
+                                Belum punya akun?{" "}
+                                <Link href="/register" className="text-blue-600 hover:underline">
+                                    Daftar di sini
+                                </Link>
+                            </div>
+                        </CardFooter>
+                    </form>
+                </Card>
+            </main>
+            <Footer />
         </div>
     );
 }

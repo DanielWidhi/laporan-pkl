@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Header } from "@/components/dashboard/header";
+import { Footer } from "@/components/footer";
 import { Loader2 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -85,15 +86,21 @@ export default function DashboardLayout({
     }
 
     return (
-        <div className="grid min-h-screen w-full overflow-x-hidden md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
-            <Sidebar role={userRole} />
-            <div className="flex flex-col min-w-0">
-                {/* Kirim role dan userName ke Header */}
-                <Header role={userRole} userName={userName} />
-                <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-white min-w-0">
-                    {children}
-                </main>
+        <div className="flex min-h-screen flex-col w-full overflow-x-hidden">
+            {/* Grid: Sidebar + Konten utama */}
+            <div className="grid flex-1 w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
+                <Sidebar role={userRole} />
+                <div className="flex flex-col min-w-0">
+                    {/* Kirim role dan userName ke Header */}
+                    <Header role={userRole} userName={userName} />
+                    <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-white min-w-0">
+                        {children}
+                    </main>
+                </div>
             </div>
+
+            {/* Footer full-width, tanpa link Login & Daftar */}
+            <Footer variant="dashboard" />
         </div>
     );
-}
+}
