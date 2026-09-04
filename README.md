@@ -40,3 +40,15 @@ npx shadcn@latest init
 ```
 npx shadcn@latest add button input card form label table
 ```
+npm install @supabase/supabase-js @supabase/ssr
+```
+npx shadcn@latest add sheet avatar dropdown-menu
+```
+npx shadcn@latest add textarea
+```
+npx shadcn@latest add badge
+```
+npx shadcn@latest add separator
+```
+npm install sweetalert2
+```
