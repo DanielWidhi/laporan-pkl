@@ -28,6 +28,10 @@ import {
     FileText,
     X,
     Save,
+    CheckCircle2,
+    CalendarDays,
+    LogIn,
+    LogOut as LogOutIcon,
 } from "lucide-react";
 
 interface Laporan {
@@ -48,7 +52,7 @@ export default function LaporanPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [userId, setUserId] = useState<string | null>(null);
 
-    // State Modal Edit Lengkap
+    // State Modal Edit
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isSavingEdit, setIsSavingEdit] = useState(false);
     const [isLoadingGps, setIsLoadingGps] = useState(false);
@@ -61,7 +65,7 @@ export default function LaporanPage() {
         lokasi: "",
     });
 
-    // 1. Ambil data laporan asli dari Supabase
+    // 1. Ambil data laporan — diurutkan tanggal terbaru
     const fetchLaporan = async (uid: string) => {
         const { data, error } = await supabase
             .from("laporan_harian")
@@ -95,11 +99,18 @@ export default function LaporanPage() {
         initUser();
     }, [router, supabase]);
 
-    // Format jam (contoh: "08:30")
+    // Format tanggal "4 Sep 2026"
+    const formatDate = (dateStr: string) =>
+        new Date(dateStr).toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+        });
+
+    // Format jam "08:30"
     const formatTime = (isoString: string | null) => {
         if (!isoString) return "-";
-        const date = new Date(isoString);
-        return date.toLocaleTimeString("id-ID", {
+        return new Date(isoString).toLocaleTimeString("id-ID", {
             hour: "2-digit",
             minute: "2-digit",
         });
@@ -108,9 +119,7 @@ export default function LaporanPage() {
     const getHourMinute = (isoString: string | null) => {
         if (!isoString) return "";
         const date = new Date(isoString);
-        const jam = date.getHours().toString().padStart(2, "0");
-        const menit = date.getMinutes().toString().padStart(2, "0");
-        return `${jam}:${menit}`;
+        return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
     };
 
     // 2. BUKA MODAL EDIT
@@ -191,7 +200,6 @@ export default function LaporanPage() {
         );
 
         setIsEditModalOpen(false);
-
         Swal.fire({
             icon: "success",
             title: "Perubahan Tersimpan!",
@@ -203,10 +211,7 @@ export default function LaporanPage() {
     // 4. ABSEN PULANG INSTAN
     const handleAbsenPulang = (id: string) => {
         const now = new Date();
-        const jamFormat = now.toLocaleTimeString("id-ID", {
-            hour: "2-digit",
-            minute: "2-digit",
-        });
+        const jamFormat = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
 
         Swal.fire({
             title: "Absen Pulang Sekarang?",
@@ -249,7 +254,7 @@ export default function LaporanPage() {
     const handleDelete = (id: string) => {
         Swal.fire({
             title: "Hapus Laporan Ini?",
-            text: "Data yang dihapus dari Supabase tidak bisa dikembalikan!",
+            text: "Data yang dihapus tidak bisa dikembalikan!",
             icon: "warning",
             showCancelButton: true,
             confirmButtonColor: "#dc2626",
@@ -278,12 +283,11 @@ export default function LaporanPage() {
     const handleShareLink = () => {
         if (!userId) return;
         const shareUrl = `${window.location.origin}/share/${userId}`;
-
         navigator.clipboard.writeText(shareUrl);
         Swal.fire({
             icon: "success",
             title: "Link Berhasil Disalin!",
-            text: "Link laporan Anda telah disalin ke clipboard. Kirimkan link ini kepada Dosen Pembimbing Anda.",
+            text: "Kirimkan link ini kepada Dosen Pembimbing Anda.",
             confirmButtonColor: "#0f172a",
         });
     };
@@ -296,161 +300,274 @@ export default function LaporanPage() {
         );
     }
 
+    // ===== EMPTY STATE =====
+    const EmptyState = () => (
+        <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center bg-white">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
+                <FileText className="h-8 w-8 text-slate-400" />
+            </div>
+            <h3 className="mt-4 text-lg font-semibold text-slate-900">Belum Ada Laporan</h3>
+            <p className="mt-2 text-sm text-slate-500 max-w-xs mx-auto">
+                Anda belum mengisi laporan harian. Mulai catat aktivitas pertama Anda hari ini!
+            </p>
+            <Link href="/dashboard/laporan/buat" className="mt-6 inline-block">
+                <Button>
+                    <PlusCircle className="w-4 h-4 mr-2" />
+                    Buat Laporan Sekarang
+                </Button>
+            </Link>
+        </div>
+    );
+
+    // ===== MOBILE CARD per laporan =====
+    const LaporanCard = ({ laporan }: { laporan: Laporan }) => (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+            {/* Baris atas: tanggal + badge status pulang */}
+            <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50">
+                        <CalendarDays className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <span className="font-semibold text-sm text-slate-900">{formatDate(laporan.tanggal)}</span>
+                </div>
+                {laporan.absensi_pulang ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Selesai
+                    </span>
+                ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                        <Clock className="w-3 h-3" />
+                        Belum Pulang
+                    </span>
+                )}
+            </div>
+
+            {/* Jam masuk & pulang */}
+            <div className="flex items-center gap-4 text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-1.5">
+                    <LogIn className="w-3.5 h-3.5 text-blue-500" />
+                    <span className="font-medium">Masuk:</span>
+                    <span className="font-bold text-slate-900">{formatTime(laporan.absensi_masuk)}</span>
+                </div>
+                <div className="h-3 w-px bg-slate-300" />
+                <div className="flex items-center gap-1.5">
+                    <LogOutIcon className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="font-medium">Pulang:</span>
+                    <span className="font-bold text-slate-900">
+                        {laporan.absensi_pulang ? formatTime(laporan.absensi_pulang) : "-"}
+                    </span>
+                </div>
+            </div>
+
+            {/* Deskripsi */}
+            <p className="text-sm text-slate-700 leading-relaxed line-clamp-3">{laporan.deskripsi}</p>
+
+            {/* Footer: lokasi + aksi */}
+            <div className="flex items-center justify-between pt-1 border-t border-slate-100 gap-2">
+                {/* Lokasi */}
+                {laporan.lokasi ? (
+                    <a
+                        href={`https://www.google.com/maps?q=${laporan.lokasi}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 transition-colors"
+                    >
+                        <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                        <span>Lihat Lokasi</span>
+                    </a>
+                ) : (
+                    <span className="text-xs text-slate-400">Lokasi tidak ada</span>
+                )}
+
+                {/* Tombol Aksi */}
+                <div className="flex items-center gap-1">
+                    {/* Absen Pulang — hanya tampil jika belum pulang */}
+                    {!laporan.absensi_pulang && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleAbsenPulang(laporan.id)}
+                            className="h-8 px-2.5 text-xs border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+                        >
+                            <Clock className="w-3.5 h-3.5 mr-1" />
+                            Pulang
+                        </Button>
+                    )}
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+                        onClick={() => handleOpenEdit(laporan)}
+                        title="Edit laporan"
+                    >
+                        <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-slate-500 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => handleDelete(laporan.id)}
+                        title="Hapus laporan"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+
     return (
-        <div className="space-y-6">
-            {/* Header Section */}
+        <div className="space-y-5">
+            {/* ===== HEADER ===== */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Riwayat Laporan Harian</h1>
-                    <p className="text-sm text-slate-500">
-                        Daftar kegiatan PKL/Magang Anda yang tersimpan di sistem.
+                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Riwayat Laporan Harian</h1>
+                    <p className="text-sm text-slate-500 mt-0.5">
+                        {laporanList.length > 0
+                            ? `${laporanList.length} laporan tersimpan · diurutkan terbaru`
+                            : "Daftar kegiatan PKL/Magang Anda."}
                     </p>
                 </div>
                 <div className="flex gap-2 w-full sm:w-auto">
-                    <Button variant="outline" className="w-full sm:w-auto" onClick={handleShareLink}>
-                        <Share2 className="w-4 h-4 mr-2" />
-                        Bagikan ke Dosen
+                    <Button variant="outline" className="flex-1 sm:flex-none" onClick={handleShareLink}>
+                        <Share2 className="w-4 h-4 mr-2 shrink-0" />
+                        <span className="hidden xs:inline">Bagikan ke </span>Dosen
                     </Button>
-                    <Link href="/dashboard/laporan/buat" className="w-full sm:w-auto">
+                    <Link href="/dashboard/laporan/buat" className="flex-1 sm:flex-none">
                         <Button className="w-full">
-                            <PlusCircle className="w-4 h-4 mr-2" />
-                            Buat Laporan
+                            <PlusCircle className="w-4 h-4 mr-2 shrink-0" />
+                            <span className="hidden xs:inline">Buat </span>Laporan
                         </Button>
                     </Link>
                 </div>
             </div>
 
-            {/* Table Section (Tanpa Kolom Status) */}
+            {/* ===== CONTENT ===== */}
             {laporanList.length === 0 ? (
-                <div className="rounded-lg border border-dashed p-12 text-center bg-white">
-                    <FileText className="mx-auto h-12 w-12 text-slate-400" />
-                    <h3 className="mt-4 text-lg font-semibold text-slate-900">Belum Ada Laporan</h3>
-                    <p className="mt-2 text-sm text-slate-500">
-                        Anda belum mengisi laporan harian. Mulai catat aktivitas pertama Anda hari ini!
-                    </p>
-                    <Link href="/dashboard/laporan/buat" className="mt-6 inline-block">
-                        <Button>
-                            <PlusCircle className="w-4 h-4 mr-2" />
-                            Buat Laporan Sekarang
-                        </Button>
-                    </Link>
-                </div>
+                <EmptyState />
             ) : (
-                <div className="rounded-md border bg-white shadow-sm overflow-x-auto">
-                    <Table className="min-w-[800px]">
-                        <TableHeader>
-                            <TableRow className="bg-slate-50">
-                                <TableHead className="w-[120px]">Tanggal</TableHead>
-                                <TableHead className="w-[90px]">Masuk</TableHead>
-                                <TableHead className="w-[110px]">Pulang</TableHead>
-                                <TableHead className="min-w-[280px]">Deskripsi Kegiatan</TableHead>
-                                <TableHead className="w-[120px]">Lokasi</TableHead>
-                                <TableHead className="w-[90px] text-right pr-4">Aksi</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {laporanList.map((laporan) => (
-                                <TableRow key={laporan.id}>
-                                    {/* Tanggal */}
-                                    <TableCell className="font-medium">
-                                        {new Date(laporan.tanggal).toLocaleDateString("id-ID", {
-                                            day: "numeric",
-                                            month: "short",
-                                            year: "numeric",
-                                        })}
-                                    </TableCell>
+                <>
+                    {/* MOBILE: Card List (hanya tampil di < md) */}
+                    <div className="flex flex-col gap-3 md:hidden">
+                        {laporanList.map((laporan) => (
+                            <LaporanCard key={laporan.id} laporan={laporan} />
+                        ))}
+                    </div>
 
-                                    {/* Jam Masuk */}
-                                    <TableCell className="text-slate-700">
-                                        {formatTime(laporan.absensi_masuk)}
-                                    </TableCell>
-
-                                    {/* Jam Pulang (Jika belum, langsung tombol Pulang) */}
-                                    <TableCell>
-                                        {laporan.absensi_pulang ? (
-                                            <span className="font-medium text-slate-900">
-                                                {formatTime(laporan.absensi_pulang)}
-                                            </span>
-                                        ) : (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                title="Klik untuk Absen Pulang sekarang"
-                                                onClick={() => handleAbsenPulang(laporan.id)}
-                                                className="h-7 px-2 text-xs flex items-center gap-1 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
-                                            >
-                                                <Clock className="w-3.5 h-3.5" />
-                                                Pulang
-                                            </Button>
-                                        )}
-                                    </TableCell>
-
-                                    {/* Deskripsi */}
-                                    <TableCell>
-                                        <p className="line-clamp-2 text-sm text-slate-800">{laporan.deskripsi}</p>
-                                    </TableCell>
-
-                                    {/* Lokasi Maps */}
-                                    <TableCell>
-                                        {laporan.lokasi ? (
-                                            <a
-                                                href={`https://www.google.com/maps?q=${laporan.lokasi}`}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 transition-colors"
-                                                title="Buka titik koordinat di Google Maps"
-                                            >
-                                                <MapPin className="w-3.5 h-3.5 text-rose-500" />
-                                                Maps
-                                            </a>
-                                        ) : (
-                                            <span className="text-xs text-slate-400">-</span>
-                                        )}
-                                    </TableCell>
-
-                                    {/* Tombol Edit & Delete */}
-                                    <TableCell className="text-right pr-4">
-                                        <div className="flex justify-end gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 text-slate-600 hover:text-blue-600 hover:bg-blue-50"
-                                                onClick={() => handleOpenEdit(laporan)}
-                                                title="Edit Seluruh Data Laporan"
-                                            >
-                                                <Pencil className="w-4 h-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 text-slate-600 hover:text-red-600 hover:bg-red-50"
-                                                onClick={() => handleDelete(laporan.id)}
-                                                title="Hapus Laporan"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </Button>
-                                        </div>
-                                    </TableCell>
+                    {/* DESKTOP: Tabel (hanya tampil di >= md) */}
+                    <div className="hidden md:block rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
+                        <Table className="min-w-[780px]">
+                            <TableHeader>
+                                <TableRow className="bg-slate-50 hover:bg-slate-50">
+                                    <TableHead className="w-[130px] font-semibold text-slate-700">Tanggal</TableHead>
+                                    <TableHead className="w-[90px] font-semibold text-slate-700">Masuk</TableHead>
+                                    <TableHead className="w-[120px] font-semibold text-slate-700">Pulang</TableHead>
+                                    <TableHead className="font-semibold text-slate-700">Deskripsi Kegiatan</TableHead>
+                                    <TableHead className="w-[110px] font-semibold text-slate-700">Lokasi</TableHead>
+                                    <TableHead className="w-[90px] text-right pr-4 font-semibold text-slate-700">Aksi</TableHead>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
+                            </TableHeader>
+                            <TableBody>
+                                {laporanList.map((laporan) => (
+                                    <TableRow key={laporan.id} className="hover:bg-slate-50/50">
+                                        {/* Tanggal */}
+                                        <TableCell className="font-medium text-slate-900">
+                                            {formatDate(laporan.tanggal)}
+                                        </TableCell>
+
+                                        {/* Jam Masuk */}
+                                        <TableCell className="text-slate-700 font-mono text-sm">
+                                            {formatTime(laporan.absensi_masuk)}
+                                        </TableCell>
+
+                                        {/* Jam Pulang */}
+                                        <TableCell>
+                                            {laporan.absensi_pulang ? (
+                                                <span className="font-mono text-sm font-medium text-slate-900">
+                                                    {formatTime(laporan.absensi_pulang)}
+                                                </span>
+                                            ) : (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    title="Klik untuk Absen Pulang sekarang"
+                                                    onClick={() => handleAbsenPulang(laporan.id)}
+                                                    className="h-7 px-2 text-xs flex items-center gap-1 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+                                                >
+                                                    <Clock className="w-3.5 h-3.5" />
+                                                    Pulang
+                                                </Button>
+                                            )}
+                                        </TableCell>
+
+                                        {/* Deskripsi */}
+                                        <TableCell>
+                                            <p className="line-clamp-2 text-sm text-slate-800">{laporan.deskripsi}</p>
+                                        </TableCell>
+
+                                        {/* Lokasi */}
+                                        <TableCell>
+                                            {laporan.lokasi ? (
+                                                <a
+                                                    href={`https://www.google.com/maps?q=${laporan.lokasi}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 transition-colors"
+                                                >
+                                                    <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                                    Maps
+                                                </a>
+                                            ) : (
+                                                <span className="text-xs text-slate-400">-</span>
+                                            )}
+                                        </TableCell>
+
+                                        {/* Aksi */}
+                                        <TableCell className="text-right pr-4">
+                                            <div className="flex justify-end gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+                                                    onClick={() => handleOpenEdit(laporan)}
+                                                    title="Edit laporan"
+                                                >
+                                                    <Pencil className="w-4 h-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-slate-500 hover:text-red-600 hover:bg-red-50"
+                                                    onClick={() => handleDelete(laporan.id)}
+                                                    title="Hapus laporan"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </>
             )}
 
-            {/* MODAL EDIT LENGKAP */}
+            {/* ===== MODAL EDIT ===== */}
             {isEditModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in-0 duration-200">
-                    <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-                        <div className="flex items-center justify-between border-b pb-3 mb-4">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in-0 duration-200">
+                    <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+                        {/* Modal Header */}
+                        <div className="flex items-start justify-between border-b pb-3 mb-4 gap-2">
                             <div>
-                                <h3 className="text-lg font-bold text-slate-900">Edit Laporan Harian</h3>
-                                <p className="text-xs text-slate-500">Perbarui data tanggal, jam, kegiatan, atau koordinat lokasi.</p>
+                                <h3 className="text-base sm:text-lg font-bold text-slate-900">Edit Laporan Harian</h3>
+                                <p className="text-xs text-slate-500 mt-0.5">Perbarui data tanggal, jam, kegiatan, atau koordinat lokasi.</p>
                             </div>
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 rounded-full text-slate-400 hover:text-slate-700"
+                                className="h-8 w-8 shrink-0 rounded-full text-slate-400 hover:text-slate-700"
                                 onClick={() => setIsEditModalOpen(false)}
                             >
                                 <X className="h-4 w-4" />
@@ -531,16 +648,22 @@ export default function LaporanPage() {
                                 </div>
                             </div>
 
-                            <div className="flex justify-end gap-2 pt-3 border-t mt-6">
+                            {/* Footer Modal */}
+                            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t mt-2">
                                 <Button
                                     type="button"
                                     variant="outline"
                                     onClick={() => setIsEditModalOpen(false)}
                                     disabled={isSavingEdit}
+                                    className="w-full sm:w-auto"
                                 >
                                     Batal
                                 </Button>
-                                <Button type="submit" disabled={isSavingEdit} className="bg-slate-900 hover:bg-slate-800">
+                                <Button
+                                    type="submit"
+                                    disabled={isSavingEdit}
+                                    className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800"
+                                >
                                     {isSavingEdit ? (
                                         <>
                                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />

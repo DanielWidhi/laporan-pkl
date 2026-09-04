@@ -203,10 +203,12 @@ export default function BuatLaporanPage() {
                                 <Button
                                     type="button"
                                     variant="secondary"
+                                    className="shrink-0"
                                     onClick={handleSetWaktuSekarang}
                                 >
                                     <Clock className="w-4 h-4 mr-2" />
-                                    Jam Sekarang
+                                    <span className="hidden xs:inline">Jam Sekarang</span>
+                                    <span className="xs:hidden">Sekarang</span>
                                 </Button>
                             </div>
                             <p className="text-xs text-slate-500">
@@ -229,6 +231,7 @@ export default function BuatLaporanPage() {
                                 <Button
                                     type="button"
                                     variant="outline"
+                                    className="shrink-0"
                                     onClick={handleAmbilLokasi}
                                     disabled={isLoadingLokasi}
                                 >
@@ -246,15 +249,16 @@ export default function BuatLaporanPage() {
                         </div>
 
                     </CardContent>
-                    <CardFooter className="flex justify-end gap-2 border-t pt-4">
+                    <CardFooter className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t pt-4">
                         <Button
                             variant="outline"
                             type="button"
+                            className="w-full sm:w-auto"
                             onClick={() => router.push("/dashboard/laporan")}
                         >
                             Batal
                         </Button>
-                        <Button type="submit" disabled={isSubmitting}>
+                        <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
                             {isSubmitting ? (
                                 <>
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />

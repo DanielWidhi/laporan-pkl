@@ -308,15 +308,16 @@ export default function ProfilPage() {
                             </div>
                         </div>
                     </CardContent>
-                    <CardFooter className="flex justify-end gap-2 bg-slate-50 border-t py-4 rounded-b-xl">
+                    <CardFooter className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 bg-slate-50 border-t py-4 rounded-b-xl">
                         <Button
                             type="button"
                             variant="outline"
+                            className="w-full sm:w-auto"
                             onClick={() => router.push("/dashboard")}
                         >
                             Batal
                         </Button>
-                        <Button type="submit" disabled={isSaving}>
+                        <Button type="submit" disabled={isSaving} className="w-full sm:w-auto">
                             {isSaving ? (
                                 <>
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
