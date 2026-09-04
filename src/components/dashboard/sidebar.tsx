@@ -22,7 +22,7 @@ export function Sidebar({ role }: { role?: string | null }) {
     const pathname = usePathname();
 
     return (
-        <aside className="hidden w-64 flex-col border-r bg-white md:flex h-screen sticky top-0">
+        <aside className="hidden flex-col border-r bg-white md:flex h-screen sticky top-0">
             {/* Logo */}
             <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
                 <Link href="/dashboard" className="flex items-center gap-2 font-bold text-slate-900">
