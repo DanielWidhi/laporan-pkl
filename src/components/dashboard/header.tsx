@@ -97,7 +97,7 @@ export function Header({
 
                     <SheetContent side="left" className="flex flex-col w-72 p-0 gap-0">
                         {/* Header Sheet */}
-                        <div className="flex h-16 items-center justify-between border-b px-5">
+                        <div className="flex h-16 items-center border-b px-5">
                             <Link
                                 href="/dashboard"
                                 className="flex items-center gap-2 font-bold text-slate-900"
@@ -106,13 +106,6 @@ export function Header({
                                 <FileText className="h-5 w-5 text-blue-600" />
                                 <span>SiPekal</span>
                             </Link>
-                            <button
-                                onClick={() => setIsSheetOpen(false)}
-                                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-                                aria-label="Tutup menu"
-                            >
-                                <X className="h-4 w-4" />
-                            </button>
                         </div>
 
                         {/* Nav Links Sheet */}
