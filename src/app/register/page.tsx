@@ -53,9 +53,15 @@ export default function RegisterPage() {
         setIsLoading(true);
 
         // Kirim data registrasi ke Supabase Auth
+        const redirectUrl = `${window.location.origin}/verified`;
+
+        // Kirim data registrasi ke Supabase Auth beserta target redirect
         const { data, error } = await supabase.auth.signUp({
             email,
             password,
+            options: {
+                emailRedirectTo: redirectUrl,
+            },
         });
 
         setIsLoading(false);
