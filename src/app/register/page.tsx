@@ -17,85 +17,68 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export default function LoginPage() {
+export default function RegisterPage() {
     const router = useRouter();
     const supabase = createClient();
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
-    const handleLogin = async (e: React.FormEvent) => {
+    const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Validasi Password
+        if (password !== confirmPassword) {
+            Swal.fire({
+                icon: "error",
+                title: "Gagal",
+                text: "Konfirmasi password tidak cocok!",
+                confirmButtonColor: "#0f172a",
+            });
+            return;
+        }
+
+        if (password.length < 6) {
+            Swal.fire({
+                icon: "warning",
+                title: "Perhatian",
+                text: "Password minimal terdiri dari 6 karakter.",
+                confirmButtonColor: "#0f172a",
+            });
+            return;
+        }
+
         setIsLoading(true);
 
-        // 1. Cek Login ke Supabase Auth
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        // Kirim data registrasi ke Supabase Auth
+        const { data, error } = await supabase.auth.signUp({
             email,
             password,
         });
 
-        if (authError) {
-            setIsLoading(false);
-            Swal.fire({
-                icon: "error",
-                title: "Login Gagal",
-                text: "Email atau password yang Anda masukkan salah!",
-                confirmButtonColor: "#0f172a",
-            });
-            return;
-        }
-
-        // 2. Ambil data profil user dari tabel profiles
-        const { data: profile, error: profileError } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", authData.user.id)
-            .single();
-
         setIsLoading(false);
 
-        if (profileError || !profile) {
+        if (error) {
             Swal.fire({
                 icon: "error",
-                title: "Kesalahan",
-                text: "Gagal mengambil data profil Anda.",
+                title: "Pendaftaran Gagal",
+                text: error.message,
                 confirmButtonColor: "#0f172a",
             });
             return;
         }
 
-        // 3. Logika Percabangan Hak Akses & Alur Pengguna
-        if (profile.role === "admin") {
-            // Jika ADMIN -> Bebas masuk ke Dashboard
-            Swal.fire({
-                icon: "success",
-                title: "Selamat Datang, Admin!",
-                timer: 1500,
-                showConfirmButton: false,
-            }).then(() => {
-                router.push("/dashboard");
-            });
-        } else {
-            // Jika MAHASISWA:
-            if (!profile.is_approved) {
-                // Belum di-approve admin
-                router.push("/pending");
-            } else if (!profile.nama) {
-                // Sudah di-approve tapi profil belum lengkap -> Onboarding
-                Swal.fire({
-                    icon: "info",
-                    title: "Lengkapi Profil",
-                    text: "Silakan lengkapi informasi PKL Anda terlebih dahulu.",
-                    confirmButtonColor: "#0f172a",
-                }).then(() => {
-                    router.push("/dashboard/profil");
-                });
-            } else {
-                // Semua sudah oke
-                router.push("/dashboard");
-            }
-        }
+        // Berhasil daftar!
+        Swal.fire({
+            icon: "success",
+            title: "Pendaftaran Berhasil!",
+            text: "Akun Anda berhasil dibuat. Silakan login.",
+            confirmButtonColor: "#0f172a",
+        }).then(() => {
+            router.push("/login");
+        });
     };
 
     return (
@@ -103,13 +86,13 @@ export default function LoginPage() {
             <Card className="w-full max-w-sm shadow-lg">
                 <CardHeader className="space-y-1">
                     <CardTitle className="text-2xl font-bold text-center">
-                        Login PKL
+                        Daftar Akun PKL
                     </CardTitle>
                     <CardDescription className="text-center">
-                        Masukkan email dan password Anda untuk masuk ke sistem
+                        Buat akun mahasiswa baru untuk mulai membuat laporan PKL
                     </CardDescription>
                 </CardHeader>
-                <form onSubmit={handleLogin}>
+                <form onSubmit={handleRegister}>
                     <CardContent className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="email">Email</Label>
@@ -127,20 +110,32 @@ export default function LoginPage() {
                             <Input
                                 id="password"
                                 type="password"
+                                placeholder="Minimal 6 karakter"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="confirmPassword">Konfirmasi Password</Label>
+                            <Input
+                                id="confirmPassword"
+                                type="password"
+                                placeholder="Ketik ulang password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
                                 required
                             />
                         </div>
                     </CardContent>
                     <CardFooter className="flex flex-col gap-4">
                         <Button className="w-full" type="submit" disabled={isLoading}>
-                            {isLoading ? "Memeriksa..." : "Masuk"}
+                            {isLoading ? "Mendaftarkan..." : "Daftar Sekarang"}
                         </Button>
                         <div className="text-sm text-center text-slate-500">
-                            Belum punya akun?{" "}
-                            <Link href="/register" className="text-blue-600 hover:underline">
-                                Daftar di sini
+                            Sudah punya akun?{" "}
+                            <Link href="/login" className="text-blue-600 hover:underline">
+                                Masuk di sini
                             </Link>
                         </div>
                     </CardFooter>

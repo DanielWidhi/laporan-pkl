@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
+import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
     Table,
@@ -17,74 +19,114 @@ import {
     PlusCircle,
     Share2,
     MapPin,
-    LogOut,
     Pencil,
     Trash2,
     Clock,
+    Loader2,
+    FileText,
 } from "lucide-react";
 
-// Data awal (dummy)
-const initialLaporan = [
-    {
-        id: "1",
-        tanggal: "2026-09-01",
-        deskripsi: "Mempelajari struktur folder Next.js dan setup awal Shadcn UI.",
-        absenMasuk: "08:00",
-        absenPulang: "17:00",
-        lokasi: "-6.200000, 106.816666",
-        statusParaf: true,
-    },
-    {
-        id: "2",
-        tanggal: "2026-09-02",
-        deskripsi: "Mendesain database PostgreSQL dan mencoba koneksi Supabase.",
-        absenMasuk: "08:15",
-        absenPulang: "-", // Belum absen pulang
-        lokasi: "-6.200000, 106.816666",
-        statusParaf: false,
-    },
-    {
-        id: "3",
-        tanggal: "2026-09-03",
-        deskripsi: "Mengerjakan UI Dashboard dan form input laporan harian.",
-        absenMasuk: "07:50",
-        absenPulang: "-", // Belum absen pulang
-        lokasi: "-6.200000, 106.816666",
-        statusParaf: false,
-    },
-];
+interface Laporan {
+    id: string;
+    tanggal: string;
+    deskripsi: string;
+    absensi_masuk: string;
+    absensi_pulang: string | null;
+    lokasi: string;
+    status_paraf: boolean;
+}
 
 export default function LaporanPage() {
-    const [laporanList, setLaporanList] = useState(initialLaporan);
+    const router = useRouter();
+    const supabase = createClient();
 
-    // 1. FITUR ABSEN PULANG DENGAN SWEETALERT2
+    const [laporanList, setLaporanList] = useState<Laporan[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [userId, setUserId] = useState<string | null>(null);
+
+    // 1. Ambil data laporan asli dari Supabase
+    const fetchLaporan = async (uid: string) => {
+        const { data, error } = await supabase
+            .from("laporan_harian")
+            .select("*")
+            .eq("mahasiswa_id", uid)
+            .order("tanggal", { ascending: false });
+
+        if (error) {
+            console.error("Error fetching data:", error);
+        } else {
+            setLaporanList(data || []);
+        }
+        setIsLoading(false);
+    };
+
+    useEffect(() => {
+        async function initUser() {
+            const {
+                data: { user },
+            } = await supabase.auth.getUser();
+
+            if (!user) {
+                router.push("/login");
+                return;
+            }
+
+            setUserId(user.id);
+            fetchLaporan(user.id);
+        }
+
+        initUser();
+    }, [router, supabase]);
+
+    // Format jam dari timestamp (contoh: 08:30)
+    const formatTime = (isoString: string | null) => {
+        if (!isoString) return "-";
+        const date = new Date(isoString);
+        return date.toLocaleTimeString("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+        });
+    };
+
+    // 2. ABSEN PULANG LANGSUNG KE SUPABASE
     const handleAbsenPulang = (id: string) => {
         const now = new Date();
-        const jamPulang = `${now.getHours().toString().padStart(2, "0")}:${now
-            .getMinutes()
-            .toString()
-            .padStart(2, "0")}`;
+        const jamFormat = now.toLocaleTimeString("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+        });
 
         Swal.fire({
-            title: "Absen Pulang?",
-            text: `Waktu saat ini (${jamPulang}) akan dicatat sebagai jam pulang Anda.`,
+            title: "Absen Pulang Sekarang?",
+            text: `Pukul ${jamFormat} akan dicatat sebagai waktu pulang Anda.`,
             icon: "question",
             showCancelButton: true,
-            confirmButtonColor: "#0f172a", // Slate-900
+            confirmButtonColor: "#0f172a",
             cancelButtonColor: "#64748b",
-            confirmButtonText: "Ya, Absen Sekarang!",
+            confirmButtonText: "Ya, Absen Pulang!",
             cancelButtonText: "Batal",
-        }).then((result) => {
+        }).then(async (result) => {
             if (result.isConfirmed) {
+                const { error } = await supabase
+                    .from("laporan_harian")
+                    .update({ absensi_pulang: now.toISOString() })
+                    .eq("id", id);
+
+                if (error) {
+                    Swal.fire("Gagal", error.message, "error");
+                    return;
+                }
+
+                // Update tampilan state lokal
                 setLaporanList((prev) =>
                     prev.map((item) =>
-                        item.id === id ? { ...item, absenPulang: jamPulang } : item
+                        item.id === id ? { ...item, absensi_pulang: now.toISOString() } : item
                     )
                 );
 
                 Swal.fire({
                     title: "Berhasil!",
-                    text: `Absen pulang berhasil dicatat pada pukul ${jamPulang}.`,
+                    text: `Absen pulang tercatat pada ${jamFormat}.`,
                     icon: "success",
                     confirmButtonColor: "#0f172a",
                 });
@@ -92,69 +134,95 @@ export default function LaporanPage() {
         });
     };
 
-    // 2. FITUR EDIT LAPORAN DENGAN SWEETALERT2
-    const handleEdit = (laporan: (typeof initialLaporan)[0]) => {
+    // 3. EDIT DESKRIPSI KE SUPABASE
+    const handleEdit = (laporan: Laporan) => {
         Swal.fire({
             title: "Edit Laporan Kegiatan",
             input: "textarea",
             inputValue: laporan.deskripsi,
             inputLabel: "Deskripsi Kegiatan",
-            inputPlaceholder: "Tuliskan revisi kegiatan Anda di sini...",
-            inputAttributes: {
-                "aria-label": "Tuliskan revisi kegiatan Anda di sini",
-            },
+            inputPlaceholder: "Tuliskan revisi kegiatan...",
             showCancelButton: true,
             confirmButtonColor: "#0f172a",
             cancelButtonColor: "#64748b",
             confirmButtonText: "Simpan Perubahan",
             cancelButtonText: "Batal",
             inputValidator: (value) => {
-                if (!value) {
-                    return "Deskripsi kegiatan tidak boleh kosong!";
-                }
+                if (!value) return "Deskripsi tidak boleh kosong!";
             },
-        }).then((result) => {
+        }).then(async (result) => {
             if (result.isConfirmed) {
+                const { error } = await supabase
+                    .from("laporan_harian")
+                    .update({ deskripsi: result.value })
+                    .eq("id", laporan.id);
+
+                if (error) {
+                    Swal.fire("Gagal", error.message, "error");
+                    return;
+                }
+
                 setLaporanList((prev) =>
                     prev.map((item) =>
                         item.id === laporan.id ? { ...item, deskripsi: result.value } : item
                     )
                 );
 
-                Swal.fire({
-                    title: "Tersimpan!",
-                    text: "Deskripsi kegiatan harian Anda telah diperbarui.",
-                    icon: "success",
-                    confirmButtonColor: "#0f172a",
-                });
+                Swal.fire("Tersimpan!", "Deskripsi kegiatan berhasil diperbarui.", "success");
             }
         });
     };
 
-    // 3. FITUR DELETE LAPORAN DENGAN SWEETALERT2
+    // 4. HAPUS LAPORAN DARI SUPABASE
     const handleDelete = (id: string) => {
         Swal.fire({
             title: "Hapus Laporan Ini?",
-            text: "Data laporan yang dihapus tidak dapat dipulihkan kembali!",
+            text: "Data yang dihapus dari Supabase tidak bisa dikembalikan!",
             icon: "warning",
             showCancelButton: true,
-            confirmButtonColor: "#dc2626", // Red-600
+            confirmButtonColor: "#dc2626",
             cancelButtonColor: "#64748b",
             confirmButtonText: "Ya, Hapus!",
             cancelButtonText: "Batal",
-        }).then((result) => {
+        }).then(async (result) => {
             if (result.isConfirmed) {
-                setLaporanList((prev) => prev.filter((item) => item.id !== id));
+                const { error } = await supabase
+                    .from("laporan_harian")
+                    .delete()
+                    .eq("id", id);
 
-                Swal.fire({
-                    title: "Terhapus!",
-                    text: "Laporan berhasil dihapus.",
-                    icon: "success",
-                    confirmButtonColor: "#0f172a",
-                });
+                if (error) {
+                    Swal.fire("Gagal", error.message, "error");
+                    return;
+                }
+
+                setLaporanList((prev) => prev.filter((item) => item.id !== id));
+                Swal.fire("Terhapus!", "Laporan telah dihapus dari database.", "success");
             }
         });
     };
+
+    // 5. BAGIKAN LINK KE DOSEN (COPY TO CLIPBOARD)
+    const handleShareLink = () => {
+        if (!userId) return;
+        const shareUrl = `${window.location.origin}/share/${userId}`;
+
+        navigator.clipboard.writeText(shareUrl);
+        Swal.fire({
+            icon: "success",
+            title: "Link Berhasil Disalin!",
+            text: "Link laporan Anda telah disalin ke clipboard. Kirimkan link ini kepada Dosen Pembimbing Anda.",
+            confirmButtonColor: "#0f172a",
+        });
+    };
+
+    if (isLoading) {
+        return (
+            <div className="flex h-96 items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -163,11 +231,11 @@ export default function LaporanPage() {
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Riwayat Laporan Harian</h1>
                     <p className="text-sm text-slate-500">
-                        Daftar kegiatan PKL/Magang yang telah Anda laporkan.
+                        Daftar kegiatan PKL/Magang Anda yang tersimpan di sistem.
                     </p>
                 </div>
                 <div className="flex gap-2 w-full sm:w-auto">
-                    <Button variant="outline" className="w-full sm:w-auto">
+                    <Button variant="outline" className="w-full sm:w-auto" onClick={handleShareLink}>
                         <Share2 className="w-4 h-4 mr-2" />
                         Bagikan ke Dosen
                     </Button>
@@ -181,104 +249,129 @@ export default function LaporanPage() {
             </div>
 
             {/* Table Section */}
-            <div className="rounded-md border bg-white shadow-sm overflow-x-auto">
-                <Table className="min-w-[950px]">
-                    <TableHeader>
-                        <TableRow className="bg-slate-50">
-                            <TableHead className="w-[120px]">Tanggal</TableHead>
-                            <TableHead className="w-[90px]">Masuk</TableHead>
-                            <TableHead className="w-[100px]">Pulang</TableHead>
-                            <TableHead className="min-w-[260px]">Deskripsi Kegiatan</TableHead>
-                            <TableHead className="w-[130px]">Lokasi</TableHead>
-                            <TableHead className="w-[160px]">Status / Absen</TableHead>
-                            <TableHead className="w-[100px] text-right">Aksi</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {laporanList.map((laporan) => (
-                            <TableRow key={laporan.id}>
-                                <TableCell className="font-medium">
-                                    {new Date(laporan.tanggal).toLocaleDateString("id-ID", {
-                                        day: "numeric",
-                                        month: "short",
-                                        year: "numeric",
-                                    })}
-                                </TableCell>
-                                <TableCell>{laporan.absenMasuk}</TableCell>
-                                <TableCell>
-                                    {laporan.absenPulang === "-" ? (
-                                        <span className="text-slate-400 font-mono">-</span>
-                                    ) : (
-                                        laporan.absenPulang
-                                    )}
-                                </TableCell>
-                                <TableCell>
-                                    <p className="line-clamp-2 text-sm">{laporan.deskripsi}</p>
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 cursor-pointer">
-                                        <MapPin className="w-3 h-3" />
-                                        Lihat Peta
-                                    </div>
-                                </TableCell>
-
-                                {/* Kolom Status & Ikon Absen Pulang */}
-                                <TableCell>
-                                    <div className="flex items-center gap-2">
-                                        {laporan.statusParaf ? (
-                                            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-emerald-200">
-                                                Disetujui
-                                            </Badge>
-                                        ) : (
-                                            <Badge variant="secondary" className="bg-slate-100 text-slate-600">
-                                                Menunggu
-                                            </Badge>
-                                        )}
-
-                                        {/* Ikon Absen Pulang cepat jika jam pulang belum tercatat */}
-                                        {laporan.absenPulang === "-" && (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                title="Klik untuk Absen Pulang sekarang"
-                                                onClick={() => handleAbsenPulang(laporan.id)}
-                                                className="h-7 px-2 text-xs flex items-center gap-1 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
-                                            >
-                                                <Clock className="w-3.5 h-3.5" />
-                                                Pulang
-                                            </Button>
-                                        )}
-                                    </div>
-                                </TableCell>
-
-                                {/* Kolom Edit & Delete */}
-                                <TableCell className="text-right">
-                                    <div className="flex justify-end gap-1">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8 text-slate-600 hover:text-blue-600 hover:bg-blue-50"
-                                            onClick={() => handleEdit(laporan)}
-                                            title="Edit Kegiatan"
-                                        >
-                                            <Pencil className="w-4 h-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8 text-slate-600 hover:text-red-600 hover:bg-red-50"
-                                            onClick={() => handleDelete(laporan.id)}
-                                            title="Hapus Laporan"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                    </div>
-                                </TableCell>
+            {laporanList.length === 0 ? (
+                <div className="rounded-lg border border-dashed p-12 text-center bg-white">
+                    <FileText className="mx-auto h-12 w-12 text-slate-400" />
+                    <h3 className="mt-4 text-lg font-semibold text-slate-900">Belum Ada Laporan</h3>
+                    <p className="mt-2 text-sm text-slate-500">
+                        Anda belum mengisi laporan harian. Mulai catat aktivitas pertama Anda hari ini!
+                    </p>
+                    <Link href="/dashboard/laporan/buat" className="mt-6 inline-block">
+                        <Button>
+                            <PlusCircle className="w-4 h-4 mr-2" />
+                            Buat Laporan Sekarang
+                        </Button>
+                    </Link>
+                </div>
+            ) : (
+                <div className="rounded-md border bg-white shadow-sm overflow-x-auto">
+                    <Table className="min-w-[950px]">
+                        <TableHeader>
+                            <TableRow className="bg-slate-50">
+                                <TableHead className="w-[120px]">Tanggal</TableHead>
+                                <TableHead className="w-[90px]">Masuk</TableHead>
+                                <TableHead className="w-[100px]">Pulang</TableHead>
+                                <TableHead className="min-w-[260px]">Deskripsi Kegiatan</TableHead>
+                                <TableHead className="w-[130px]">Lokasi</TableHead>
+                                <TableHead className="w-[160px]">Status / Absen</TableHead>
+                                <TableHead className="w-[100px] text-right">Aksi</TableHead>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </div>
+                        </TableHeader>
+                        <TableBody>
+                            {laporanList.map((laporan) => (
+                                <TableRow key={laporan.id}>
+                                    <TableCell className="font-medium">
+                                        {new Date(laporan.tanggal).toLocaleDateString("id-ID", {
+                                            day: "numeric",
+                                            month: "short",
+                                            year: "numeric",
+                                        })}
+                                    </TableCell>
+                                    <TableCell>{formatTime(laporan.absensi_masuk)}</TableCell>
+                                    <TableCell>
+                                        {laporan.absensi_pulang ? (
+                                            formatTime(laporan.absensi_pulang)
+                                        ) : (
+                                            <span className="text-slate-400 font-mono">-</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        <p className="line-clamp-2 text-sm">{laporan.deskripsi}</p>
+                                    </TableCell>
+                                    <TableCell>
+                                        {laporan.lokasi ? (
+                                            <a
+                                                href={`https://www.google.com/maps?q=${laporan.lokasi}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 transition-colors"
+                                                title="Buka titik koordinat di Google Maps"
+                                            >
+                                                <MapPin className="w-3.5 h-3.5 text-rose-500" />
+                                                Buka Maps
+                                            </a>
+                                        ) : (
+                                            <span className="text-xs text-slate-400">-</span>
+                                        )}
+                                    </TableCell>
+
+                                    {/* Status & Absen Pulang Cepat */}
+                                    <TableCell>
+                                        <div className="flex items-center gap-2">
+                                            {laporan.status_paraf ? (
+                                                <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-emerald-200">
+                                                    Disetujui
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="secondary" className="bg-slate-100 text-slate-600">
+                                                    Menunggu
+                                                </Badge>
+                                            )}
+
+                                            {!laporan.absensi_pulang && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    title="Klik untuk Absen Pulang sekarang"
+                                                    onClick={() => handleAbsenPulang(laporan.id)}
+                                                    className="h-7 px-2 text-xs flex items-center gap-1 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                                                >
+                                                    <Clock className="w-3.5 h-3.5" />
+                                                    Pulang
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </TableCell>
+
+                                    {/* Edit & Delete */}
+                                    <TableCell className="text-right">
+                                        <div className="flex justify-end gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-slate-600 hover:text-blue-600 hover:bg-blue-50"
+                                                onClick={() => handleEdit(laporan)}
+                                                title="Edit Deskripsi"
+                                            >
+                                                <Pencil className="w-4 h-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-slate-600 hover:text-red-600 hover:bg-red-50"
+                                                onClick={() => handleDelete(laporan.id)}
+                                                title="Hapus Laporan"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            )}
         </div>
     );
 }

@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Swal from "sweetalert2";
+import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -13,14 +16,41 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MapPin, Clock } from "lucide-react";
+import { MapPin, Clock, Loader2, ArrowLeft, Send } from "lucide-react";
 
 export default function BuatLaporanPage() {
-    const [lokasi, setLokasi] = useState("");
-    const [waktu, setWaktu] = useState("");
-    const [isLoadingLokasi, setIsLoadingLokasi] = useState(false);
+    const router = useRouter();
+    const supabase = createClient();
 
-    // Fungsi untuk mengambil titik kordinat GPS dari HP/Laptop
+    // Ambil tanggal hari ini dalam format YYYY-MM-DD
+    const today = new Date().toISOString().split("T")[0];
+
+    const [tanggal, setTanggal] = useState(today);
+    const [deskripsi, setDeskripsi] = useState("");
+    const [waktu, setWaktu] = useState("");
+    const [lokasi, setLokasi] = useState("");
+    const [isLoadingLokasi, setIsLoadingLokasi] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [userId, setUserId] = useState<string | null>(null);
+
+    // Ambil user ID yang sedang login
+    useEffect(() => {
+        async function getUser() {
+            const {
+                data: { user },
+            } = await supabase.auth.getUser();
+
+            if (!user) {
+                router.push("/login");
+                return;
+            }
+            setUserId(user.id);
+        }
+
+        getUser();
+    }, [router, supabase]);
+
+    // Fungsi ambil koordinat GPS
     const handleAmbilLokasi = () => {
         setIsLoadingLokasi(true);
         if ("geolocation" in navigator) {
@@ -33,112 +63,212 @@ export default function BuatLaporanPage() {
                 },
                 (error) => {
                     console.error("Error getting location", error);
-                    alert("Gagal mengambil lokasi. Pastikan izin lokasi (GPS) diaktifkan.");
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Izin Lokasi Ditolak",
+                        text: "Pastikan GPS atau izin lokasi pada browser Anda telah diaktifkan.",
+                        confirmButtonColor: "#0f172a",
+                    });
                     setIsLoadingLokasi(false);
                 }
             );
         } else {
-            alert("Browser Anda tidak mendukung fitur lokasi.");
+            Swal.fire({
+                icon: "error",
+                title: "Tidak Didukung",
+                text: "Browser Anda tidak mendukung fitur Geolocation.",
+                confirmButtonColor: "#0f172a",
+            });
             setIsLoadingLokasi(false);
         }
     };
 
-    // Fungsi untuk set jam otomatis berdasarkan waktu sekarang
+    // Fungsi set jam sekarang (HH:MM)
     const handleSetWaktuSekarang = () => {
         const now = new Date();
-        // Format menjadi HH:MM (contoh: 08:30 atau 17:15)
         const jam = now.getHours().toString().padStart(2, "0");
         const menit = now.getMinutes().toString().padStart(2, "0");
         setWaktu(`${jam}:${menit}`);
     };
 
+    // Kirim data laporan ke Supabase
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!userId) return;
+
+        if (!lokasi) {
+            Swal.fire({
+                icon: "warning",
+                title: "Lokasi Belum Diambil",
+                text: "Silakan klik tombol 'Ambil Lokasi' untuk memetakan titik koordinat kehadiran Anda.",
+                confirmButtonColor: "#0f172a",
+            });
+            return;
+        }
+
+        setIsSubmitting(true);
+
+        // Format jam masuk ke ISO string timestamp
+        const absensiMasukIso = new Date(`${tanggal}T${waktu}:00`).toISOString();
+
+        const { error } = await supabase.from("laporan_harian").insert({
+            mahasiswa_id: userId,
+            tanggal: tanggal,
+            deskripsi: deskripsi,
+            absensi_masuk: absensiMasukIso,
+            lokasi: lokasi,
+            status_paraf: false,
+        });
+
+        setIsSubmitting(false);
+
+        if (error) {
+            Swal.fire({
+                icon: "error",
+                title: "Gagal Mengirim Laporan",
+                text: error.message,
+                confirmButtonColor: "#0f172a",
+            });
+            return;
+        }
+
+        Swal.fire({
+            icon: "success",
+            title: "Laporan Terkirim!",
+            text: "Laporan kegiatan harian Anda berhasil disimpan.",
+            confirmButtonColor: "#0f172a",
+        }).then(() => {
+            router.push("/dashboard/laporan");
+        });
+    };
+
     return (
-        <div className="max-w-2xl mx-auto w-full">
+        <div className="max-w-2xl mx-auto w-full space-y-4">
+            <Button
+                variant="ghost"
+                className="mb-2"
+                onClick={() => router.push("/dashboard/laporan")}
+            >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Kembali ke Riwayat
+            </Button>
+
             <Card className="shadow-md">
                 <CardHeader>
                     <CardTitle className="text-2xl">Buat Laporan Harian</CardTitle>
                     <CardDescription>
-                        Isi aktivitas PKL/Magang Anda hari ini.
+                        Isi aktivitas dan kehadiran PKL/Magang Anda hari ini.
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <form onSubmit={handleSubmit}>
+                    <CardContent className="space-y-6">
 
-                    {/* Tanggal */}
-                    <div className="space-y-2">
-                        <Label htmlFor="tanggal">Tanggal</Label>
-                        <Input id="tanggal" type="date" required />
-                    </div>
-
-                    {/* Deskripsi Aktivitas */}
-                    <div className="space-y-2">
-                        <Label htmlFor="deskripsi">Deskripsi Aktivitas Harian</Label>
-                        <Textarea
-                            id="deskripsi"
-                            placeholder="Contoh: Hari ini saya mempelajari cara setup Next.js dan Tailwind..."
-                            className="min-h-[120px]"
-                            required
-                        />
-                    </div>
-
-                    {/* Jam Absen */}
-                    <div className="space-y-2">
-                        <Label htmlFor="waktu">Waktu (Absen Masuk / Pulang)</Label>
-                        <div className="flex gap-2">
+                        {/* Tanggal Laporan */}
+                        <div className="space-y-2">
+                            <Label htmlFor="tanggal">Tanggal</Label>
                             <Input
-                                id="waktu"
-                                type="time"
-                                value={waktu}
-                                onChange={(e) => setWaktu(e.target.value)}
+                                id="tanggal"
+                                type="date"
+                                value={tanggal}
+                                onChange={(e) => setTanggal(e.target.value)}
                                 required
                             />
-                            <Button type="button" variant="secondary" onClick={handleSetWaktuSekarang}>
-                                <Clock className="w-4 h-4 mr-2" />
-                                Jam Sekarang
-                            </Button>
                         </div>
-                        <p className="text-xs text-slate-500">
-                            Pilih waktu secara manual atau klik "Jam Sekarang".
-                        </p>
-                    </div>
 
-                    {/* Lokasi */}
-                    <div className="space-y-2">
-                        <Label htmlFor="lokasi">Titik Lokasi (Koordinat)</Label>
-                        <div className="flex gap-2">
-                            <Input
-                                id="lokasi"
-                                type="text"
-                                placeholder="-6.200000, 106.816666"
-                                value={lokasi}
-                                onChange={(e) => setLokasi(e.target.value)}
-                                readOnly // Supaya user tidak memalsukan kordinat dengan mengetik manual
+                        {/* Deskripsi Kegiatan */}
+                        <div className="space-y-2">
+                            <Label htmlFor="deskripsi">Deskripsi Aktivitas Harian</Label>
+                            <Textarea
+                                id="deskripsi"
+                                placeholder="Tuliskan aktivitas atau pekerjaan yang Anda kerjakan hari ini secara rinci..."
+                                className="min-h-[120px]"
+                                value={deskripsi}
+                                onChange={(e) => setDeskripsi(e.target.value)}
+                                required
                             />
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={handleAmbilLokasi}
-                                disabled={isLoadingLokasi}
-                            >
-                                <MapPin className="w-4 h-4 mr-2" />
-                                {isLoadingLokasi ? "Mencari..." : "Ambil Lokasi"}
-                            </Button>
                         </div>
-                    </div>
 
-                    {/* Upload Gambar */}
-                    <div className="space-y-2">
-                        <Label htmlFor="gambar">Foto Aktivitas (Opsional)</Label>
-                        <Input id="gambar" type="file" accept="image/*" />
-                        <p className="text-xs text-slate-500">
-                            Format: JPG, PNG. Maksimal 2MB.
-                        </p>
-                    </div>
+                        {/* Jam Absen Masuk */}
+                        <div className="space-y-2">
+                            <Label htmlFor="waktu">Jam Masuk</Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    id="waktu"
+                                    type="time"
+                                    value={waktu}
+                                    onChange={(e) => setWaktu(e.target.value)}
+                                    required
+                                />
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={handleSetWaktuSekarang}
+                                >
+                                    <Clock className="w-4 h-4 mr-2" />
+                                    Jam Sekarang
+                                </Button>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                                Gunakan tombol "Jam Sekarang" untuk mencatat waktu hadir saat ini.
+                            </p>
+                        </div>
 
-                </CardContent>
-                <CardFooter className="flex justify-end gap-2 border-t pt-4">
-                    <Button variant="outline" type="button">Batal</Button>
-                    <Button type="submit">Simpan Laporan</Button>
-                </CardFooter>
+                        {/* Titik Lokasi GPS */}
+                        <div className="space-y-2">
+                            <Label htmlFor="lokasi">Titik Koordinat Kehadiran</Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    id="lokasi"
+                                    type="text"
+                                    placeholder="Klik 'Ambil Lokasi' untuk mendeteksi GPS..."
+                                    value={lokasi}
+                                    readOnly
+                                    required
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={handleAmbilLokasi}
+                                    disabled={isLoadingLokasi}
+                                >
+                                    {isLoadingLokasi ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                        <MapPin className="w-4 h-4 mr-2 text-rose-600" />
+                                    )}
+                                    {isLoadingLokasi ? "Mencari..." : "Ambil Lokasi"}
+                                </Button>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                                Koordinat diambil otomatis dari perangkat Anda sebagai bukti validitas kehadiran.
+                            </p>
+                        </div>
+
+                    </CardContent>
+                    <CardFooter className="flex justify-end gap-2 border-t pt-4">
+                        <Button
+                            variant="outline"
+                            type="button"
+                            onClick={() => router.push("/dashboard/laporan")}
+                        >
+                            Batal
+                        </Button>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Menyimpan...
+                                </>
+                            ) : (
+                                <>
+                                    <Send className="w-4 h-4 mr-2" />
+                                    Simpan Laporan
+                                </>
+                            )}
+                        </Button>
+                    </CardFooter>
+                </form>
             </Card>
         </div>
     );
