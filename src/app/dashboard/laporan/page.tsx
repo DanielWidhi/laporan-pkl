@@ -38,9 +38,9 @@ interface Laporan {
     id: string;
     tanggal: string;
     deskripsi: string;
-    absensi_masuk: string;
+    absensi_masuk: string | null;
     absensi_pulang: string | null;
-    lokasi: string;
+    lokasi: string | null;
     status_paraf: boolean;
 }
 
@@ -65,7 +65,6 @@ export default function LaporanPage() {
         lokasi: "",
     });
 
-    // 1. Ambil data laporan — diurutkan tanggal terbaru
     const fetchLaporan = async (uid: string) => {
         const { data, error } = await supabase
             .from("laporan_harian")
@@ -99,7 +98,6 @@ export default function LaporanPage() {
         initUser();
     }, [router, supabase]);
 
-    // Format tanggal "4 Sep 2026"
     const formatDate = (dateStr: string) =>
         new Date(dateStr).toLocaleDateString("id-ID", {
             day: "numeric",
@@ -107,7 +105,6 @@ export default function LaporanPage() {
             year: "numeric",
         });
 
-    // Format jam "08:30"
     const formatTime = (isoString: string | null) => {
         if (!isoString) return "-";
         return new Date(isoString).toLocaleTimeString("id-ID", {
@@ -122,7 +119,6 @@ export default function LaporanPage() {
         return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
     };
 
-    // 2. BUKA MODAL EDIT
     const handleOpenEdit = (laporan: Laporan) => {
         setEditForm({
             id: laporan.id,
@@ -156,12 +152,35 @@ export default function LaporanPage() {
         }
     };
 
-    // 3. SIMPAN EDIT
     const handleSaveEdit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSavingEdit(true);
 
-        const absensiMasukIso = new Date(`${editForm.tanggal}T${editForm.jamMasuk}:00`).toISOString();
+        // === VALIDASI TANGGAL DUPLIKAT SAAT EDIT ===
+        const { data: existingReport } = await supabase
+            .from("laporan_harian")
+            .select("id")
+            .eq("mahasiswa_id", userId)
+            .eq("tanggal", editForm.tanggal)
+            .neq("id", editForm.id)
+            .limit(1);
+
+        if (existingReport && existingReport.length > 0) {
+            Swal.fire({
+                icon: "error",
+                title: "Tanggal Bentrok",
+                text: `Anda sudah memiliki laporan di tanggal ${editForm.tanggal}. Silakan pilih tanggal lain.`,
+                confirmButtonColor: "#0f172a",
+            });
+            setIsSavingEdit(false);
+            return;
+        }
+        // ============================================
+
+        const absensiMasukIso = editForm.jamMasuk
+            ? new Date(`${editForm.tanggal}T${editForm.jamMasuk}:00`).toISOString()
+            : null;
+
         const absensiPulangIso = editForm.jamPulang
             ? new Date(`${editForm.tanggal}T${editForm.jamPulang}:00`).toISOString()
             : null;
@@ -208,7 +227,69 @@ export default function LaporanPage() {
         });
     };
 
-    // 4. ABSEN PULANG INSTAN
+    const handleAbsenMasuk = (id: string) => {
+        Swal.fire({
+            title: "Absen Masuk Sekarang?",
+            text: "Sistem akan mencatat jam saat ini dan mendeteksi lokasi GPS Anda.",
+            icon: "info",
+            showCancelButton: true,
+            confirmButtonColor: "#0f172a",
+            cancelButtonColor: "#64748b",
+            confirmButtonText: "Ya, Absen Masuk!",
+            cancelButtonText: "Batal",
+            showLoaderOnConfirm: true,
+            preConfirm: () => {
+                return new Promise((resolve, reject) => {
+                    if (!navigator.geolocation) {
+                        reject("Fitur GPS tidak didukung oleh browser ini.");
+                    }
+                    navigator.geolocation.getCurrentPosition(
+                        async (pos) => {
+                            const lokasiStr = `${pos.coords.latitude}, ${pos.coords.longitude}`;
+                            const absensiMasukIso = new Date().toISOString();
+
+                            const { error } = await supabase
+                                .from("laporan_harian")
+                                .update({ absensi_masuk: absensiMasukIso, lokasi: lokasiStr })
+                                .eq("id", id);
+
+                            if (error) {
+                                reject(error.message);
+                            } else {
+                                resolve({ absensi_masuk: absensiMasukIso, lokasi: lokasiStr });
+                            }
+                        },
+                        () => {
+                            reject("Gagal mendapatkan lokasi GPS. Pastikan izin lokasi aktif.");
+                        },
+                        { enableHighAccuracy: true, timeout: 10000 }
+                    );
+                }).catch(error => {
+                    Swal.showValidationMessage(error);
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                setLaporanList((prev) =>
+                    prev.map((item) =>
+                        item.id === id ? {
+                            ...item,
+                            absensi_masuk: result.value.absensi_masuk,
+                            lokasi: result.value.lokasi
+                        } : item
+                    )
+                );
+                Swal.fire({
+                    title: "Berhasil!",
+                    text: "Absen masuk dan lokasi berhasil dicatat.",
+                    icon: "success",
+                    confirmButtonColor: "#0f172a",
+                });
+            }
+        });
+    };
+
     const handleAbsenPulang = (id: string) => {
         const now = new Date();
         const jamFormat = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
@@ -250,7 +331,6 @@ export default function LaporanPage() {
         });
     };
 
-    // 5. HAPUS LAPORAN
     const handleDelete = (id: string) => {
         Swal.fire({
             title: "Hapus Laporan Ini?",
@@ -279,7 +359,6 @@ export default function LaporanPage() {
         });
     };
 
-    // 6. BAGIKAN LINK KE DOSEN
     const handleShareLink = () => {
         if (!userId) return;
         const shareUrl = `${window.location.origin}/share/${userId}`;
@@ -300,7 +379,6 @@ export default function LaporanPage() {
         );
     }
 
-    // ===== EMPTY STATE =====
     const EmptyState = () => (
         <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center bg-white">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
@@ -319,10 +397,8 @@ export default function LaporanPage() {
         </div>
     );
 
-    // ===== MOBILE CARD per laporan =====
     const LaporanCard = ({ laporan }: { laporan: Laporan }) => (
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
-            {/* Baris atas: tanggal + badge status pulang */}
             <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50">
@@ -335,20 +411,33 @@ export default function LaporanPage() {
                         <CheckCircle2 className="w-3 h-3" />
                         Selesai
                     </span>
-                ) : (
+                ) : laporan.absensi_masuk ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
                         <Clock className="w-3 h-3" />
                         Belum Pulang
                     </span>
+                ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                        <Clock className="w-3 h-3" />
+                        Belum Masuk
+                    </span>
                 )}
             </div>
 
-            {/* Jam masuk & pulang */}
             <div className="flex items-center gap-4 text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2">
                 <div className="flex items-center gap-1.5">
                     <LogIn className="w-3.5 h-3.5 text-blue-500" />
                     <span className="font-medium">Masuk:</span>
-                    <span className="font-bold text-slate-900">{formatTime(laporan.absensi_masuk)}</span>
+                    {laporan.absensi_masuk ? (
+                        <span className="font-bold text-slate-900">{formatTime(laporan.absensi_masuk)}</span>
+                    ) : (
+                        <button
+                            onClick={() => handleAbsenMasuk(laporan.id)}
+                            className="font-bold text-blue-600 underline decoration-blue-300 hover:text-blue-800 transition-colors"
+                        >
+                            Klik Absen
+                        </button>
+                    )}
                 </div>
                 <div className="h-3 w-px bg-slate-300" />
                 <div className="flex items-center gap-1.5">
@@ -360,12 +449,9 @@ export default function LaporanPage() {
                 </div>
             </div>
 
-            {/* Deskripsi */}
             <p className="text-sm text-slate-700 leading-relaxed line-clamp-3">{laporan.deskripsi}</p>
 
-            {/* Footer: lokasi + aksi */}
             <div className="flex items-center justify-between pt-1 border-t border-slate-100 gap-2">
-                {/* Lokasi */}
                 {laporan.lokasi ? (
                     <a
                         href={`https://www.google.com/maps?q=${laporan.lokasi}`}
@@ -380,10 +466,8 @@ export default function LaporanPage() {
                     <span className="text-xs text-slate-400">Lokasi tidak ada</span>
                 )}
 
-                {/* Tombol Aksi */}
                 <div className="flex items-center gap-1">
-                    {/* Absen Pulang — hanya tampil jika belum pulang */}
-                    {!laporan.absensi_pulang && (
+                    {!laporan.absensi_pulang && laporan.absensi_masuk && (
                         <Button
                             size="sm"
                             variant="outline"
@@ -419,7 +503,6 @@ export default function LaporanPage() {
 
     return (
         <div className="space-y-5">
-            {/* ===== HEADER ===== */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Riwayat Laporan Harian</h1>
@@ -443,25 +526,22 @@ export default function LaporanPage() {
                 </div>
             </div>
 
-            {/* ===== CONTENT ===== */}
             {laporanList.length === 0 ? (
                 <EmptyState />
             ) : (
                 <>
-                    {/* MOBILE: Card List (hanya tampil di < md) */}
                     <div className="flex flex-col gap-3 md:hidden">
                         {laporanList.map((laporan) => (
                             <LaporanCard key={laporan.id} laporan={laporan} />
                         ))}
                     </div>
 
-                    {/* DESKTOP: Tabel (hanya tampil di >= md) */}
                     <div className="hidden md:block rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
                         <Table className="min-w-[780px]">
                             <TableHeader>
                                 <TableRow className="bg-slate-50 hover:bg-slate-50">
                                     <TableHead className="w-[130px] font-semibold text-slate-700">Tanggal</TableHead>
-                                    <TableHead className="w-[90px] font-semibold text-slate-700">Masuk</TableHead>
+                                    <TableHead className="w-[100px] font-semibold text-slate-700">Masuk</TableHead>
                                     <TableHead className="w-[120px] font-semibold text-slate-700">Pulang</TableHead>
                                     <TableHead className="font-semibold text-slate-700">Deskripsi Kegiatan</TableHead>
                                     <TableHead className="w-[110px] font-semibold text-slate-700">Lokasi</TableHead>
@@ -471,23 +551,32 @@ export default function LaporanPage() {
                             <TableBody>
                                 {laporanList.map((laporan) => (
                                     <TableRow key={laporan.id} className="hover:bg-slate-50/50">
-                                        {/* Tanggal */}
                                         <TableCell className="font-medium text-slate-900">
                                             {formatDate(laporan.tanggal)}
                                         </TableCell>
 
-                                        {/* Jam Masuk */}
                                         <TableCell className="text-slate-700 font-mono text-sm">
-                                            {formatTime(laporan.absensi_masuk)}
+                                            {laporan.absensi_masuk ? (
+                                                formatTime(laporan.absensi_masuk)
+                                            ) : (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => handleAbsenMasuk(laporan.id)}
+                                                    className="h-7 px-2 text-xs flex items-center gap-1 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+                                                >
+                                                    <LogIn className="w-3.5 h-3.5" />
+                                                    Masuk
+                                                </Button>
+                                            )}
                                         </TableCell>
 
-                                        {/* Jam Pulang */}
                                         <TableCell>
                                             {laporan.absensi_pulang ? (
                                                 <span className="font-mono text-sm font-medium text-slate-900">
                                                     {formatTime(laporan.absensi_pulang)}
                                                 </span>
-                                            ) : (
+                                            ) : laporan.absensi_masuk ? (
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
@@ -498,15 +587,15 @@ export default function LaporanPage() {
                                                     <Clock className="w-3.5 h-3.5" />
                                                     Pulang
                                                 </Button>
+                                            ) : (
+                                                <span className="text-xs text-slate-400 italic">-</span>
                                             )}
                                         </TableCell>
 
-                                        {/* Deskripsi */}
                                         <TableCell>
                                             <p className="line-clamp-2 text-sm text-slate-800">{laporan.deskripsi}</p>
                                         </TableCell>
 
-                                        {/* Lokasi */}
                                         <TableCell>
                                             {laporan.lokasi ? (
                                                 <a
@@ -523,7 +612,6 @@ export default function LaporanPage() {
                                             )}
                                         </TableCell>
 
-                                        {/* Aksi */}
                                         <TableCell className="text-right pr-4">
                                             <div className="flex justify-end gap-1">
                                                 <Button
@@ -554,11 +642,9 @@ export default function LaporanPage() {
                 </>
             )}
 
-            {/* ===== MODAL EDIT ===== */}
             {isEditModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in-0 duration-200">
                     <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-                        {/* Modal Header */}
                         <div className="flex items-start justify-between border-b pb-3 mb-4 gap-2">
                             <div>
                                 <h3 className="text-base sm:text-lg font-bold text-slate-900">Edit Laporan Harian</h3>
@@ -588,13 +674,12 @@ export default function LaporanPage() {
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="edit-masuk" className="text-xs font-semibold text-slate-700">Jam Masuk</Label>
+                                    <Label htmlFor="edit-masuk" className="text-xs font-semibold text-slate-700">Jam Masuk (Opsional)</Label>
                                     <Input
                                         id="edit-masuk"
                                         type="time"
                                         value={editForm.jamMasuk}
                                         onChange={(e) => setEditForm({ ...editForm, jamMasuk: e.target.value })}
-                                        required
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -629,7 +714,6 @@ export default function LaporanPage() {
                                         value={editForm.lokasi}
                                         onChange={(e) => setEditForm({ ...editForm, lokasi: e.target.value })}
                                         placeholder="Contoh: -8.7900, 115.1700"
-                                        required
                                     />
                                     <Button
                                         type="button"
@@ -648,7 +732,6 @@ export default function LaporanPage() {
                                 </div>
                             </div>
 
-                            {/* Footer Modal */}
                             <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t mt-2">
                                 <Button
                                     type="button"
